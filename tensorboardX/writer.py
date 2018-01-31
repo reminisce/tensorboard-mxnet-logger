@@ -28,7 +28,7 @@ from .event_file_writer import EventFileWriter
 from .summary import scalar, histogram, image, audio, text, pr_curve
 from .graph import graph
 from .graph_onnx import gg
-from .embedding import make_mat, make_sprite, make_tsv, append_pbtxt
+from .embedding import _save_ndarray_to_file, make_sprite, make_tsv, append_pbtxt
 
 
 class SummaryToEventTransformer(object):
@@ -225,19 +225,19 @@ class SummaryWriter(object):
     to add data to the file directly from the training loop, without slowing down
     training.
     """
-    def __init__(self, log_dir=None, comment=''):
+    def __init__(self, logdir=None, comment=''):
         """
         Args:
-            log_dir (string): save location, default is: runs/**CURRENT_DATETIME_HOSTNAME**, which changes after each
+            logdir (string): save location, default is: runs/**CURRENT_DATETIME_HOSTNAME**, which changes after each
               run. Use hierarchical folder structure to compare between runs easily. e.g. 'runs/exp1', 'runs/exp2'
             comment (string): comment that appends to the default log_dir
         """
-        if not log_dir:
+        if not logdir:
             import socket
             from datetime import datetime
             current_time = datetime.now().strftime('%b%d_%H-%M-%S')
-            log_dir = os.path.join('runs', current_time + '_' + socket.gethostname() + comment)
-        self.file_writer = FileWriter(logdir=log_dir)
+            logdir = os.path.join('runs', current_time + '_' + socket.gethostname() + comment)
+        self.file_writer = FileWriter(logdir=logdir)
         v = 1E-12
         buckets = []
         neg_buckets = []
@@ -250,6 +250,9 @@ class SummaryWriter(object):
         #
         self.all_writers = {self.file_writer.get_logdir(): self.file_writer}
         self.scalar_dict = {}  # {writer_id : [[timestamp, step, value],...],...}
+
+    def get_logdir(self):
+        return self.file_writer.get_logdir()
 
     def __append_to_scalar_dict(self, tag, scalar_value, global_step,
                                 timestamp):
@@ -290,7 +293,7 @@ class SummaryWriter(object):
             # 'run_14h' in TensorBoard's scalar section.
         """
         timestamp = time.time()
-        fw_logdir = self.file_writer.get_logdir()
+        fw_logdir = self.get_logdir()
         for tag, scalar_value in tag_scalar_dict.items():
             fw_tag = fw_logdir + "/" + main_tag + "/" + tag
             if fw_tag in self.all_writers.keys():
@@ -367,7 +370,7 @@ class SummaryWriter(object):
         self.file_writer.add_summary(text(tag, text_string), global_step)
         if tag not in self.text_tags:
             self.text_tags.append(tag)
-            extension_dir = self.file_writer.get_logdir() + '/plugins/tensorboard_text/'
+            extension_dir = self.get_logdir() + '/plugins/tensorboard_text/'
             if not os.path.exists(extension_dir):
                 os.makedirs(extension_dir)
             with open(extension_dir + 'tensors.json', 'w') as fp:
@@ -392,7 +395,10 @@ class SummaryWriter(object):
             pass
         else:
             if LooseVersion(torch.__version__) >= LooseVersion("0.3"):
-                print('You are using PyTorch==0.3, use add_graph_onnx()')
+                print('You are using PyTorch==0.3, switching to calling add_graph_onnx()')
+                torch.onnx.export(model, input_to_model,
+                                  os.path.join(self.get_logdir(), "{}.proto".format(0)), verbose=True)
+                self.add_graph_onnx(os.path.join(self.get_logdir(), "{}.proto".format(0)))
                 return
             if not hasattr(torch.autograd.Variable, 'grad_fn'):
                 print('add_graph() only supports PyTorch v0.2.')
@@ -433,24 +439,32 @@ class SummaryWriter(object):
             writer.add_embedding(torch.randn(100, 5), label_img=label_img)
             writer.add_embedding(torch.randn(100, 5), metadata=meta)
         """
+        mat_shape = mat.shape
+        if len(mat_shape) != 2:
+            raise ValueError('expected 2D NDArray as embedding data, while received an array with ndim=%d'
+                             % len(mat_shape))
         if global_step is None:
             global_step = 0
             # clear pbtxt?
-        save_path = os.path.join(self.file_writer.get_logdir(), str(global_step).zfill(5))
+        save_path = os.path.join(self.get_logdir(), str(global_step).zfill(5))
         try:
             os.makedirs(save_path)
         except OSError:
             print('warning: Embedding dir exists, did you set global_step for add_embedding()?')
         if metadata is not None:
-            assert mat.size(0) == len(metadata), '#labels should equal with #data points'
+            if mat_shape[0] != len(metadata):
+                raise ValueError('expected equal values of mat first dim and length of metadata,'
+                                 ' while received %d and %d for each' % (mat_shape[0], len(metadata)))
             make_tsv(metadata, save_path)
         if label_img is not None:
-            assert mat.size(0) == label_img.size(0), '#images should equal with #data points'
+            label_img_shape = label_img.shape
+            if mat_shape[0] != label_img_shape[0]:
+                raise ValueError('expected equal first dim size of mat and label_img,'
+                                 ' while received %d and %d for each' % (mat_shape[0], label_img_shape[0]))
             make_sprite(label_img, save_path)
-        assert mat.dim() == 2, 'mat should be 2D, where mat.size(0) is the number of data points'
-        make_mat(mat.tolist(), save_path)
+        _save_ndarray_to_file(mat, save_path)
         # new funcion to append to the config file a new embedding
-        append_pbtxt(metadata, label_img, self.file_writer.get_logdir(), str(global_step).zfill(5), tag)
+        append_pbtxt(metadata, label_img, self.get_logdir(), str(global_step).zfill(5), tag)
 
     def add_pr_curve(self, tag, labels, predictions, global_step=None, num_thresholds=127, weights=None):
         """Adds precision recall curve.

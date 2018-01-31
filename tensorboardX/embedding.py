@@ -1,4 +1,6 @@
 import os
+import numpy as np
+import mxnet as mx
 
 
 def make_tsv(metadata, save_path):
@@ -10,17 +12,16 @@ def make_tsv(metadata, save_path):
 
 # https://github.com/tensorflow/tensorboard/issues/44 image label will be squared
 def make_sprite(label_img, save_path):
-    import math
     import torch
     import torchvision
     from .x2num import makenp
     # this ensures the sprite image has correct dimension as described in
     # https://www.tensorflow.org/get_started/embedding_viz
-    nrow = int(math.ceil((label_img.size(0)) ** 0.5))
+    nrow = int(np.ceil(np.sqrt(label_img.shape[0])))
 
     label_img = torch.from_numpy(makenp(label_img))  # for other framework
     # augment images so that #images equals nrow*nrow
-    label_img = torch.cat((label_img, torch.randn(nrow ** 2 - label_img.size(0), *label_img.size()[1:]) * 255), 0)
+    label_img = torch.cat((label_img, torch.randn(nrow * nrow - label_img.shape[0], *label_img.shape[1:]) * 255), 0)
 
     torchvision.utils.save_image(label_img, os.path.join(save_path, 'sprite.png'), nrow=nrow, padding=0)
 
@@ -45,5 +46,19 @@ def append_pbtxt(metadata, label_img, save_path, global_step, tag):
 def make_mat(matlist, save_path):
     with open(os.path.join(save_path, 'tensors.tsv'), 'w') as f:
         for x in matlist:
+            x = [str(i) for i in x]
+            f.write('\t'.join(x) + '\n')
+
+
+def _save_ndarray_to_file(data, file_path):
+    if isinstance(data, mx.nd.NDArray):
+        data_list = data.asnumpy().tolist()
+    elif isinstance(data, np.ndarray):
+        data_list = data.tolist()
+    else:
+        raise ValueError('only supports saving mxnet NDArray and numpy ndarray to file, while received type=%s'
+                         % str(type(data)))
+    with open(os.path.join(file_path, 'tensors.tsv'), 'w') as f:
+        for x in data_list:
             x = [str(i) for i in x]
             f.write('\t'.join(x) + '\n')

@@ -9,28 +9,14 @@ try:
 except ImportError:
     Image = None
 
+from .utils import _makenp
+
 
 def _make_tsv(metadata, save_path):
     metadata = [str(x) for x in metadata]
     with open(os.path.join(save_path, 'metadata.tsv'), 'w') as f:
         for x in metadata:
             f.write(x + '\n')
-
-
-# https://github.com/tensorflow/tensorboard/issues/44 image label will be squared
-def _make_sprite_v1(img_labels, save_path):
-    import torch
-    import torchvision
-    from .x2num import _makenp
-    # this ensures the sprite image has correct dimension as described in
-    # https://www.tensorflow.org/get_started/embedding_viz
-    nrow = int(np.ceil(np.sqrt(img_labels.shape[0])))
-
-    img_labels = torch.from_numpy(_makenp(img_labels))  # for other framework
-    # augment images so that #images equals nrow*nrow
-    img_labels = torch.cat((img_labels, torch.randn(nrow * nrow - img_labels.shape[0], *img_labels.shape[1:]) * 255), 0)
-
-    torchvision.utils.save_image(img_labels, os.path.join(save_path, 'sprite.png'), nrow=nrow, padding=0)
 
 
 def _make_grid(tensor, nrow=8, padding=2,
@@ -58,8 +44,6 @@ def _make_grid(tensor, nrow=8, padding=2,
         `here <https://gist.github.com/anonymous/bf16430f7750c023141c562f3e9f2a91>`
 
     """
-    #if not (torch.is_tensor(tensor) or
-    #        (isinstance(tensor, list) and all(torch.is_tensor(t) for t in tensor))):
     if not isinstance(tensor, np.ndarray)\
             or not (isinstance(tensor, np.ndarray)
                     and all(isinstance(t, np.ndarray) for t in tensor)):
@@ -68,35 +52,25 @@ def _make_grid(tensor, nrow=8, padding=2,
 
     # if list of tensors, convert to a 4D mini-batch Tensor
     if isinstance(tensor, list):
-        #tensor = torch.stack(tensor, dim=0)
         tensor = np.stack(tensor, axis=0)
 
-    #if tensor.dim() == 2:  # single image H x W
     if tensor.ndim == 2:  # single image H x W
-        #tensor = tensor.view(1, tensor.size(0), tensor.size(1))
         tensor = tensor.reshape(shape=((1,) + tensor.shape))
-    #if tensor.dim() == 3:  # single image
     if tensor.ndim == 3:  # single image
         if tensor.shape[0] == 1:  # if single-channel, convert to 3-channel
-            #tensor = torch.cat((tensor, tensor, tensor), 0)
             tensor = np.concatenate((tensor, tensor, tensor), axis=0)
         tensor = tensor.reshape((1,) + tensor.shape)
-    #if tensor.dim() == 4 and tensor.size(1) == 1:  # single-channel images
     if tensor.ndim == 4 and tensor.shape[1] == 1:  # single-channel images
-        #tensor = torch.cat((tensor, tensor, tensor), 1)
         tensor = np.concatenate((tensor, tensor, tensor), axis=1)
 
     if normalize is True:
-        #tensor = tensor.clone()  # avoid modifying tensor in-place
         tensor = tensor.copy()  # avoid modifying tensor in-place
         if norm_range is not None:
             assert isinstance(norm_range, tuple) and len(norm_range) == 2, \
                 "norm_range has to be a tuple (min, max) if specified. min and max are numbers"
 
         def norm_ip(img, min, max):
-            #img.clamp_(min=min, max=max)
             np.clip(a=img, a_min=min, a_max=max, out=img)
-            #img.add_(-min).div_(max - min)
             img -= min
             img /= (max - min)
 
@@ -116,14 +90,10 @@ def _make_grid(tensor, nrow=8, padding=2,
         return tensor.squeeze()
 
     # make the mini-batch of images into a grid
-    #nmaps = tensor.size(0)
     nmaps = tensor.shape[0]
     xmaps = min(nrow, nmaps)
-    #ymaps = int(math.ceil(float(nmaps) / xmaps))
     ymaps = int(np.ceil(float(nmaps) / xmaps))
-    #height, width = int(tensor.size(2) + padding), int(tensor.size(3) + padding)
     height, width = int(tensor.shape[2] + padding), int(tensor.shape[3] + padding)
-    #grid = tensor.new(3, height * ymaps + padding, width * xmaps + padding).fill_(pad_value)
     grid = np.empty(shape=(3, height * ymaps + padding, width * xmaps + padding), dtype=tensor.dtype)
     grid[:] = pad_value
     k = 0
@@ -131,9 +101,6 @@ def _make_grid(tensor, nrow=8, padding=2,
         for x in range(xmaps):
             if k >= nmaps:
                 break
-            #grid.narrow(1, y * height + padding, height - padding)\
-            #    .narrow(2, x * width + padding, width - padding)\
-            #    .copy_(tensor[k])
             start1 = y * height + padding
             end1 = start1 + height - padding
             start2 = x * width + padding
@@ -157,10 +124,8 @@ def _save_image(tensor, filename, nrow=8, padding=2,
     elif not isinstance(tensor, np.ndarray):
         raise TypeError('expected numpy.ndarray or mx.nd.NDArray if MXNet is installed'
                         ', while received type=%s' % str(type(tensor)))
-    #tensor = tensor.cpu()
     grid = _make_grid(tensor, nrow=nrow, padding=padding, pad_value=pad_value,
                       normalize=normalize, norm_range=norm_range, scale_each=scale_each)
-    #ndarr = grid.mul(255).clamp(0, 255).byte().permute(1, 2, 0).numpy()
     ndarr = grid * 255
     np.clip(a=ndarr, a_min=0, a_max=255, out=ndarr)
     ndarr = ndarr.astype(np.uint8).transpose(1, 2, 0)
@@ -171,24 +136,17 @@ def _save_image(tensor, filename, nrow=8, padding=2,
 
 
 def _make_sprite(img_labels, save_path):
-    import torch
-    import torchvision
-    from .x2num import _makenp
     # this ensures the sprite image has correct dimension as described in
     # https://www.tensorflow.org/get_started/embedding_viz
     img_labels_shape = img_labels.shape
     nrow = int(np.ceil(np.sqrt(img_labels_shape[0])))
 
-    #img_labels = torch.from_numpy(_makenp(img_labels))  # for other framework
     img_labels = _makenp(img_labels)
     # augment images so that #images equals nrow*nrow
-    #img_labels = torch.cat((img_labels, torch.randn(nrow * nrow - img_labels_shape[0], *img_labels_shape[1:]) * 255), 0)
     img_labels = np.concatenate((img_labels,
                                  np.random.normal(loc=0, scale=1,
                                                   size=((nrow*nrow-img_labels_shape[0],)+img_labels_shape[1:])) * 255),
                                 axis=0)
-
-    #torchvision.utils.save_image(img_labels, os.path.join(save_path, 'sprite.png'), nrow=nrow, padding=0)
     _save_image(img_labels, os.path.join(save_path, 'sprite.png'), nrow=nrow, padding=0)
 
 
@@ -207,13 +165,6 @@ def _append_pbtxt(metadata, label_img, save_path, global_step, tag):
             f.write('single_image_dim: {}\n'.format(label_img.size(2)))
             f.write('}\n')
         f.write('}\n')
-
-
-def _make_mat(matlist, save_path):
-    with open(os.path.join(save_path, 'tensors.tsv'), 'w') as f:
-        for x in matlist:
-            x = [str(i) for i in x]
-            f.write('\t'.join(x) + '\n')
 
 
 def _save_ndarray_to_file(data, file_path):

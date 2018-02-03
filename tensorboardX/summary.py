@@ -46,7 +46,7 @@ from .src.summary_pb2 import SummaryMetadata
 from .src.tensor_pb2 import TensorProto
 from .src.tensor_shape_pb2 import TensorShapeProto
 from .src.plugin_pr_curve_pb2 import PrCurvePluginData
-from .x2num import _makenp
+from .utils import _makenp
 
 _INVALID_TAG_CHARACTERS = _re.compile(r'[^-/\w\.]')
 

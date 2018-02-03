@@ -23,12 +23,11 @@ import json
 import os
 from .src import event_pb2
 from .src import summary_pb2
-from .src import graph_pb2
 from .event_file_writer import EventFileWriter
 from .summary import scalar, histogram, image, audio, text, pr_curve
 from .graph import graph
 from .graph_onnx import gg
-from .embedding import _save_ndarray_to_file, make_sprite, make_tsv, append_pbtxt
+from .embedding import _save_ndarray_to_file, _make_sprite, _make_tsv, _append_pbtxt
 
 
 class SummaryToEventTransformer(object):
@@ -238,31 +237,35 @@ class SummaryWriter(object):
             current_time = datetime.now().strftime('%b%d_%H-%M-%S')
             logdir = os.path.join('runs', current_time + '_' + socket.gethostname() + comment)
         self.file_writer = FileWriter(logdir=logdir)
-        v = 1E-12
-        buckets = []
-        neg_buckets = []
-        while v < 1E20:
-            buckets.append(v)
-            neg_buckets.append(-v)
-            v *= 1.1
-        self.default_bins = neg_buckets[::-1] + [0] + buckets
+        self.default_bins = None
         self.text_tags = []
-        #
-        self.all_writers = {self.file_writer.get_logdir(): self.file_writer}
+        self.all_writers = {self.get_logdir(): self.file_writer}
         self.scalar_dict = {}  # {writer_id : [[timestamp, step, value],...],...}
+
+    def _get_or_create_tf_bins(self):
+        if self.default_bins is None:
+            v = 1E-12
+            buckets = []
+            neg_buckets = []
+            while v < 1E20:
+                buckets.append(v)
+                neg_buckets.append(-v)
+                v *= 1.1
+            self.default_bins = neg_buckets[::-1] + [0] + buckets
+        return self.default_bins
 
     def get_logdir(self):
         return self.file_writer.get_logdir()
 
-    def __append_to_scalar_dict(self, tag, scalar_value, global_step,
-                                timestamp):
+    def _append_to_scalar_dict(self, tag, scalar_value, global_step,
+                               timestamp):
         """This adds an entry to the self.scalar_dict datastructure with format
         {writer_id : [[timestamp, step, value], ...], ...}.
         """
-        from .x2num import makenp
+        from .x2num import _makenp
         if tag not in self.scalar_dict.keys():
             self.scalar_dict[tag] = []
-        self.scalar_dict[tag].append([timestamp, global_step, float(makenp(scalar_value))])
+        self.scalar_dict[tag].append([timestamp, global_step, float(_makenp(scalar_value))])
 
     def add_scalar(self, tag, scalar_value, global_step=None):
         """Add scalar data to summary.
@@ -273,13 +276,12 @@ class SummaryWriter(object):
             global_step (int): Global step value to record
         """
         self.file_writer.add_summary(scalar(tag, scalar_value), global_step)
-        self.__append_to_scalar_dict(tag, scalar_value, global_step, time.time())
+        self._append_to_scalar_dict(tag, scalar_value, global_step, time.time())
 
     def add_scalars(self, main_tag, tag_scalar_dict, global_step=None):
         """Adds many scalar data to summary.
 
         Args:
-            tag (string): Data identifier
             main_tag (string): The parent name for the tags
             tag_scalar_dict (dict): Key-value pair storing the tag and corresponding values
             global_step (int): Global step value to record
@@ -302,7 +304,7 @@ class SummaryWriter(object):
                 fw = FileWriter(logdir=fw_tag)
                 self.all_writers[fw_tag] = fw
             fw.add_summary(scalar(main_tag, scalar_value), global_step)
-            self.__append_to_scalar_dict(fw_tag, scalar_value, global_step, timestamp)
+            self._append_to_scalar_dict(fw_tag, scalar_value, global_step, timestamp)
 
     def export_scalars_to_json(self, path):
         """Exports to the given path an ASCII file containing all the scalars written
@@ -312,18 +314,19 @@ class SummaryWriter(object):
         with open(path, "w") as f:
             json.dump(self.scalar_dict, f)
 
-    def add_histogram(self, tag, values, global_step=None, bins='tensorflow'):
+    def add_histogram(self, tag, values, global_step=None, bins=10):
         """Add histogram to summary.
 
         Args:
             tag (string): Data identifier
             values (numpy.array): Values to build histogram
             global_step (int): Global step value to record
-            bins (string): one of {'tensorflow','auto', 'fd', ...}, this determines how the bins are made. You can find
+            bins (int) or (string): one of {'tf','auto', 'fd', ...},
+              this determines how the bins are made. You can find
               other options in: https://docs.scipy.org/doc/numpy/reference/generated/numpy.histogram.html
         """
-        if bins == 'tensorflow':
-            bins = self.default_bins
+        if bins == 'tf':
+            bins = self._get_or_create_tf_bins()
         self.file_writer.add_summary(histogram(tag, values, bins), global_step)
 
     def add_image(self, tag, img_tensor, global_step=None):
@@ -336,7 +339,7 @@ class SummaryWriter(object):
             img_tensor (torch.Tensor): Image data
             global_step (int): Global step value to record
         Shape:
-            img_tensor: :math:`(3, H, W)`. Use ``torchvision.utils.make_grid()`` to prepare it is a good idea.
+            img_tensor: :math:`(3, H, W)`. Use ``torchvision.utils._make_grid()`` to prepare it is a good idea.
         """
         self.file_writer.add_summary(image(tag, img_tensor), global_step)
 
@@ -389,6 +392,7 @@ class SummaryWriter(object):
             input_to_model (torch.autograd.Variable): a variable or a tuple of variables to be fed.
 
         """
+        # TODO(junwu): add support for MXNet graphs
         import torch
         from distutils.version import LooseVersion
         if LooseVersion(torch.__version__) >= LooseVersion("0.4"):
@@ -405,19 +409,20 @@ class SummaryWriter(object):
                 return
         self.file_writer.add_graph(graph(model, input_to_model, verbose))
 
-    def add_embedding(self, mat, metadata=None, label_img=None, global_step=None, tag='default'):
+    def add_embedding(self, embedding, str_labels=None, img_labels=None, global_step=None, tag='default'):
         """Add embedding projector data to summary.
 
         Args:
-            mat (torch.Tensor): A matrix which each row is the feature vector of the data point
-            metadata (list): A list of labels, each element will be convert to string
-            label_img (torch.Tensor): Images correspond to each data point
+            embedding (MXNet NDArray or numpy ndarray): A matrix which each row is the feature vector of the data point
+            str_labels (list): A list of labels, each element will be converted to string
+            img_labels (torch.Tensor): Images correspond to each data point
             global_step (int): Global step value to record
             tag (string): Name for the embedding
         Shape:
-            mat: :math:`(N, D)`, where N is number of data and D is feature dimension
+            embedding: :math:`(N, D)`, where N is number of data and D is number of features in
+            feature dim
 
-            label_img: :math:`(N, C, H, W)`
+            img_labels: :math:`(N, C, H, W)`
 
         Examples::
 
@@ -439,10 +444,10 @@ class SummaryWriter(object):
             writer.add_embedding(torch.randn(100, 5), label_img=label_img)
             writer.add_embedding(torch.randn(100, 5), metadata=meta)
         """
-        mat_shape = mat.shape
-        if len(mat_shape) != 2:
+        embedding_shape = embedding.shape
+        if len(embedding_shape) != 2:
             raise ValueError('expected 2D NDArray as embedding data, while received an array with ndim=%d'
-                             % len(mat_shape))
+                             % len(embedding_shape))
         if global_step is None:
             global_step = 0
             # clear pbtxt?
@@ -451,20 +456,20 @@ class SummaryWriter(object):
             os.makedirs(save_path)
         except OSError:
             print('warning: Embedding dir exists, did you set global_step for add_embedding()?')
-        if metadata is not None:
-            if mat_shape[0] != len(metadata):
-                raise ValueError('expected equal values of mat first dim and length of metadata,'
-                                 ' while received %d and %d for each' % (mat_shape[0], len(metadata)))
-            make_tsv(metadata, save_path)
-        if label_img is not None:
-            label_img_shape = label_img.shape
-            if mat_shape[0] != label_img_shape[0]:
-                raise ValueError('expected equal first dim size of mat and label_img,'
-                                 ' while received %d and %d for each' % (mat_shape[0], label_img_shape[0]))
-            make_sprite(label_img, save_path)
-        _save_ndarray_to_file(mat, save_path)
+        if str_labels is not None:
+            if embedding_shape[0] != len(str_labels):
+                raise ValueError('expected equal values of embedding first dim and length of str_labels,'
+                                 ' while received %d and %d for each' % (embedding_shape[0], len(str_labels)))
+            _make_tsv(str_labels, save_path)
+        if img_labels is not None:
+            img_labels_shape = img_labels.shape
+            if embedding_shape[0] != img_labels_shape[0]:
+                raise ValueError('expected equal first dim size of embedding and img_labels,'
+                                 ' while received %d and %d for each' % (embedding_shape[0], img_labels_shape[0]))
+            _make_sprite(img_labels, save_path)
+        _save_ndarray_to_file(embedding, save_path)
         # new funcion to append to the config file a new embedding
-        append_pbtxt(metadata, label_img, self.get_logdir(), str(global_step).zfill(5), tag)
+        _append_pbtxt(str_labels, img_labels, self.get_logdir(), str(global_step).zfill(5), tag)
 
     def add_pr_curve(self, tag, labels, predictions, global_step=None, num_thresholds=127, weights=None):
         """Adds precision recall curve.
@@ -477,9 +482,9 @@ class SummaryWriter(object):
             num_thresholds (int): Number of thresholds used to draw the curve.
 
         """
-        from .x2num import makenp
-        labels = makenp(labels)
-        predictions = makenp(predictions)
+        from .x2num import _makenp
+        labels = _makenp(labels)
+        predictions = _makenp(predictions)
         self.file_writer.add_summary(pr_curve(tag, labels, predictions, num_thresholds, weights), global_step)
 
     def close(self):

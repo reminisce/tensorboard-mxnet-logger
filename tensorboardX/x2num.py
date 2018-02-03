@@ -1,90 +1,67 @@
-# DO NOT alter/distruct/free input object !
-
 import numpy as np
+try:
+    import mxnet as mx
+except ImportError:
+    mx = None
 
 
-def makenp(x, modality=None):
+def _makenp(x, modality=None):
     # if already numpy, return
     if isinstance(x, np.ndarray):
         if modality == 'IMG' and x.dtype == np.uint8:
             return x.astype(np.float32) / 255.0
         return x
-    if np.isscalar(x):
+    elif np.isscalar(x):
         return np.array([x])
-    if 'torch' in str(type(x)):
-        return pytorch_np(x, modality)
-    if 'chainer' in str(type(x)):
-        return chainer_np(x, modality)
-    if 'mxnet' in str(type(x)):
-        return mxnet_np(x, modality)
+    elif mx is not None and isinstance(x, mx.nd.NDArray):
+        return _mxnet_np(x, modality)
+    else:
+        raise TypeError('_makenp only accepts input types of numpy.ndarray, scalar,'
+                        ' and MXNet NDArray if MXNet has been installed,'
+                        ' while received type=%s' % str(type(x)))
 
 
-def pytorch_np(x, modality):
-    import torch
-    if isinstance(x, torch.autograd.variable.Variable):
-        x = x.data
-    x = x.cpu().numpy()
-    if modality == 'IMG':
-        x = _prepare_image(x)
-    return x
-
-
-def theano_np(x):
-    import theano
-    pass
-
-
-def caffe2_np(x):
-    pass
-
-
-def mxnet_np(x, modality):
+def _mxnet_np(x, modality):
+    assert mx is not None
+    assert isinstance(x, mx.nd.NDArray)
     x = x.asnumpy()
     if modality == 'IMG':
         x = _prepare_image(x)
     return x
 
 
-def chainer_np(x, modality):
-    import chainer
-    x = chainer.cuda.to_cpu(x.data)
-    if modality == 'IMG':
-        x = _prepare_image(x)
-    return x
-
-
-def make_grid(I, ncols=8):
-    assert isinstance(I, np.ndarray), 'plugin error, should pass numpy array here'
-    assert I.ndim == 4 and I.shape[1] == 3
-    nimg = I.shape[0]
-    H = I.shape[2]
-    W = I.shape[3]
+def _make_grid(img, ncols=8):
+    assert isinstance(img, np.ndarray), 'plugin error, should pass numpy array here'
+    assert img.ndim == 4 and img.shape[1] == 3
+    nimg = img.shape[0]
+    h = img.shape[2]
+    w = img.shape[3]
     ncols = min(nimg, ncols)
     nrows = int(np.ceil(float(nimg) / ncols))
-    canvas = np.zeros((3, H * nrows, W * ncols))
+    canvas = np.zeros((3, h * nrows, w * ncols))
     i = 0
     for y in range(nrows):
         for x in range(ncols):
             if i >= nimg:
                 break
-            canvas[:, y * H:(y + 1) * H, x * W:(x + 1) * W] = I[i]
+            canvas[:, y * h:(y + 1) * h, x * w:(x + 1) * w] = img[i]
             i = i + 1
     return canvas
 
 
-def _prepare_image(I):
-    assert isinstance(I, np.ndarray), 'plugin error, should pass numpy array here'
-    assert I.ndim == 2 or I.ndim == 3 or I.ndim == 4
-    if I.ndim == 4:  # NCHW
-        if I.shape[1] == 1:  # N1HW
-            I = np.concatenate((I, I, I), 1)  # N3HW
-        assert I.shape[1] == 3
-        I = make_grid(I)  # 3xHxW
-    if I.ndim == 3 and I.shape[0] == 1:  # 1xHxW
-        I = np.concatenate((I, I, I), 0)  # 3xHxW
-    if I.ndim == 2:  # HxW
-        I = np.expand_dims(I, 0)  # 1xHxW
-        I = np.concatenate((I, I, I), 0)  # 3xHxW
-    I = I.transpose(1, 2, 0)
+def _prepare_image(img):
+    assert isinstance(img, np.ndarray), 'plugin error, should pass numpy array here'
+    assert img.ndim == 2 or img.ndim == 3 or img.ndim == 4
+    if img.ndim == 4:  # NCHW
+        if img.shape[1] == 1:  # N1HW
+            img = np.concatenate((img, img, img), 1)  # N3HW
+        assert img.shape[1] == 3
+        img = _make_grid(img)  # 3xHxW
+    if img.ndim == 3 and img.shape[0] == 1:  # 1xHxW
+        img = np.concatenate((img, img, img), 0)  # 3xHxW
+    if img.ndim == 2:  # HxW
+        img = np.expand_dims(img, 0)  # 1xHxW
+        img = np.concatenate((img, img, img), 0)  # 3xHxW
+    img = img.transpose(1, 2, 0)
 
-    return I
+    return img

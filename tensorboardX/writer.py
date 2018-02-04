@@ -21,6 +21,7 @@ from __future__ import print_function
 import time
 import json
 import os
+import logging
 from .src import event_pb2
 from .src import summary_pb2
 from .event_file_writer import EventFileWriter
@@ -409,25 +410,26 @@ class SummaryWriter(object):
                 return
         self.file_writer.add_graph(graph(model, input_to_model, verbose))
 
-    def add_embedding(self, embedding, str_labels=None, img_labels=None, global_step=None, tag='default'):
-        """Add embedding projector data to summary.
+    def add_embedding(self, embedding, labels=None, images=None, global_step=None, tag='default'):
+        """Add embedding projector data to summary. See the following reference for the meanings
+        of labels and images.
+        Ref: https://www.tensorflow.org/versions/r1.2/get_started/embedding_viz
 
         Args:
-            embedding (MXNet NDArray or numpy ndarray): A matrix which each row is the feature vector of the data point
-            str_labels (list): A list of labels, each element will be converted to string
-            img_labels (torch.Tensor): Images correspond to each data point
+            embedding (MXNet NDArray or NumPy ndarray): A matrix whose each row is the feature vector of the data point
+            labels (list): A list of labels, each element will be converted to string
+            images (MXNet NDArray or NumPy ndarray): Images correspond to each data point
             global_step (int): Global step value to record
             tag (string): Name for the embedding
         Shape:
             embedding: :math:`(N, D)`, where N is number of data and D is number of features in
             feature dim
 
-            img_labels: :math:`(N, C, H, W)`
+            images: :math:`(N, C, H, W)`
 
         Examples::
 
             import keyword
-            import torch
             meta = []
             while len(meta)<100:
                 meta = meta+keyword.kwlist # get some strings
@@ -436,9 +438,9 @@ class SummaryWriter(object):
             for i, v in enumerate(meta):
                 meta[i] = v+str(i)
 
-            label_img = torch.rand(100, 3, 10, 32)
+            images = np.random.normal(size=(100, 3, 10, 32))
             for i in range(100):
-                label_img[i]*=i/100.0
+                images[i] *= i / 100.0
 
             writer.add_embedding(torch.randn(100, 5), metadata=meta, label_img=label_img)
             writer.add_embedding(torch.randn(100, 5), label_img=label_img)
@@ -455,21 +457,21 @@ class SummaryWriter(object):
         try:
             os.makedirs(save_path)
         except OSError:
-            print('warning: Embedding dir exists, did you set global_step for add_embedding()?')
-        if str_labels is not None:
-            if embedding_shape[0] != len(str_labels):
-                raise ValueError('expected equal values of embedding first dim and length of str_labels,'
-                                 ' while received %d and %d for each' % (embedding_shape[0], len(str_labels)))
-            _make_tsv(str_labels, save_path)
-        if img_labels is not None:
-            img_labels_shape = img_labels.shape
+            logging.warn('embedding dir exists, did you set global_step for add_embedding()?')
+        if labels is not None:
+            if embedding_shape[0] != len(labels):
+                raise ValueError('expected equal values of embedding first dim and length of labels,'
+                                 ' while received %d and %d for each' % (embedding_shape[0], len(labels)))
+            _make_tsv(labels, save_path)
+        if images is not None:
+            img_labels_shape = images.shape
             if embedding_shape[0] != img_labels_shape[0]:
-                raise ValueError('expected equal first dim size of embedding and img_labels,'
+                raise ValueError('expected equal first dim size of embedding and images,'
                                  ' while received %d and %d for each' % (embedding_shape[0], img_labels_shape[0]))
-            _make_sprite(img_labels, save_path)
+            _make_sprite(images, save_path)
         _save_ndarray_to_file(embedding, save_path)
-        # new funcion to append to the config file a new embedding
-        _append_pbtxt(str_labels, img_labels, self.get_logdir(), str(global_step).zfill(5), tag)
+        # new function to append to the config file a new embedding
+        _append_pbtxt(labels, images, self.get_logdir(), str(global_step).zfill(5), tag)
 
     def add_pr_curve(self, tag, labels, predictions, global_step=None, num_thresholds=127, weights=None):
         """Adds precision recall curve.

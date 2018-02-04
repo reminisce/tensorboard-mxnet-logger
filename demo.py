@@ -42,6 +42,6 @@ dataset = datasets.MNIST('mnist', train=False, download=True)
 images = dataset.test_data[:100].float()
 label = dataset.test_labels[:100]
 features = images.view(100, 784)
-writer.add_embedding(features, str_labels=label, img_labels=images.unsqueeze(1))
+writer.add_embedding(features, labels=label, images=images.unsqueeze(1))
 writer.add_embedding(features, global_step=1, tag='noMetadata')        
 writer.close()

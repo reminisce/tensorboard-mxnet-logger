@@ -128,7 +128,7 @@ def _save_image(tensor, filename, nrow=8, padding=2,
                       normalize=normalize, norm_range=norm_range, scale_each=scale_each)
     ndarr = grid * 255
     np.clip(a=ndarr, a_min=0, a_max=255, out=ndarr)
-    ndarr = ndarr.astype(np.uint8).transpose(1, 2, 0)
+    ndarr = ndarr.astype(np.uint8).transpose((1, 2, 0))
     if Image is None:
         raise ImportError('saving image failed because PIL is not found')
     im = Image.fromarray(ndarr)
@@ -161,8 +161,8 @@ def _append_pbtxt(metadata, label_img, save_path, global_step, tag):
         if label_img is not None:
             f.write('sprite {\n')
             f.write('image_path: "{}"\n'.format(os.path.join(global_step, 'sprite.png')))
-            f.write('single_image_dim: {}\n'.format(label_img.size(3)))
-            f.write('single_image_dim: {}\n'.format(label_img.size(2)))
+            f.write('single_image_dim: {}\n'.format(label_img.shape[3]))
+            f.write('single_image_dim: {}\n'.format(label_img.shape[2]))
             f.write('}\n')
         f.write('}\n')
 

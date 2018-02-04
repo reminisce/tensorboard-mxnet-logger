@@ -74,7 +74,7 @@ for epoch in range(num_epochs):
             print("loss_value:{}".format(loss_value.data[0]))
             #we need 3 dimension for tensor to visualize it!
             out = torch.cat((out.data, torch.ones(len(out), 1)), 1)
-            writer.add_embedding(out, str_labels=label_batch.data, img_labels=data_batch.data, global_step=n_iter)
+            writer.add_embedding(out, labels=label_batch.data, images=data_batch.data, global_step=n_iter)
 
 writer.close()
 

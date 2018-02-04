@@ -55,7 +55,7 @@ def _make_grid(tensor, nrow=8, padding=2,
         tensor = np.stack(tensor, axis=0)
 
     if tensor.ndim == 2:  # single image H x W
-        tensor = tensor.reshape(shape=((1,) + tensor.shape))
+        tensor = tensor.reshape(((1,) + tensor.shape))
     if tensor.ndim == 3:  # single image
         if tensor.shape[0] == 1:  # if single-channel, convert to 3-channel
             tensor = np.concatenate((tensor, tensor, tensor), axis=0)
@@ -170,8 +170,11 @@ def _append_pbtxt(metadata, label_img, save_path, global_step, tag):
 def _save_ndarray_to_file(data, file_path):
     if isinstance(data, np.ndarray):
         data_list = data.tolist()
+    elif mx is not None and isinstance(data, mx.nd.NDArray):
+        data_list = data.asnumpy().tolist()
     else:
-        raise ValueError('only supports saving numpy ndarray to file, while received type=%s' % str(type(data)))
+        raise ValueError('only supports saving numpy.ndarray and MXNet NDArray to file if MXNet is installed,'
+                         ' while received type=%s' % str(type(data)))
     with open(os.path.join(file_path, 'tensors.tsv'), 'w') as f:
         for x in data_list:
             x = [str(i) for i in x]

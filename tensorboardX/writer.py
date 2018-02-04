@@ -22,6 +22,7 @@ import time
 import json
 import os
 import logging
+import numpy as np
 from .src import event_pb2
 from .src import summary_pb2
 from .event_file_writer import EventFileWriter
@@ -29,6 +30,11 @@ from .summary import scalar, histogram, image, audio, text, pr_curve
 from .graph import graph
 from .graph_onnx import gg
 from .embedding import _save_ndarray_to_file, _make_sprite, _make_tsv, _append_pbtxt
+
+try:
+    import mxnet as mx
+except ImportError:
+    mx = None
 
 
 class SummaryToEventTransformer(object):
@@ -462,6 +468,8 @@ class SummaryWriter(object):
             if embedding_shape[0] != len(labels):
                 raise ValueError('expected equal values of embedding first dim and length of labels,'
                                  ' while received %d and %d for each' % (embedding_shape[0], len(labels)))
+            if mx is not None and isinstance(labels, mx.nd.NDArray):
+                labels = labels.asnumpy().flatten()
             _make_tsv(labels, save_path)
         if images is not None:
             img_labels_shape = images.shape

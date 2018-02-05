@@ -64,7 +64,7 @@ def _clean_tag(name):
     return name
 
 
-def scalar(name, scalar, collections=None):
+def scalar_summary(name, scalar):
     """Outputs a `Summary` protocol buffer containing a single scalar value.
     The generated Summary has a Tensor.proto containing the input Tensor.
     Args:
@@ -85,7 +85,7 @@ def scalar(name, scalar, collections=None):
     return Summary(value=[Summary.Value(tag=name, simple_value=scalar)])
 
 
-def histogram(name, values, bins, collections=None):
+def histogram_summary(name, values, bins, collections=None):
     # pylint: disable=line-too-long
     """Outputs a `Summary` protocol buffer with a histogram.
     The generated
@@ -125,7 +125,7 @@ def make_histogram(values, bins):
                           bucket=counts)
 
 
-def image(tag, tensor):
+def image_summary(tag, tensor):
     """Outputs a `Summary` protocol buffer with images.
     The summary has up to `max_images` summary values containing images. The
     images are built from `tensor` which must be 3-D with shape `[height, width,
@@ -171,7 +171,7 @@ def make_image(tensor):
                          encoded_image_string=image_string)
 
 
-def audio(tag, tensor, sample_rate=44100):
+def audio_summary(tag, tensor, sample_rate=44100):
     tensor = _makenp(tensor)
     tensor = tensor.squeeze()
     assert(tensor.ndim == 1), 'input tensor should be 1 dimensional.'
@@ -201,7 +201,7 @@ def audio(tag, tensor, sample_rate=44100):
     return Summary(value=[Summary.Value(tag=tag, audio=audio)])
 
 
-def text(tag, text):
+def text_summary(tag, text):
     PluginData = [SummaryMetadata.PluginData(plugin_name='text')]
     smd = SummaryMetadata(plugin_data=PluginData)
     tensor = TensorProto(dtype='DT_STRING',
@@ -210,7 +210,7 @@ def text(tag, text):
     return Summary(value=[Summary.Value(node_name=tag, metadata=smd, tensor=tensor)])
 
 
-def pr_curve(tag, labels, predictions, num_thresholds=127, weights=None):
+def pr_curve_summary(tag, labels, predictions, num_thresholds=127, weights=None):
     if num_thresholds > 127:  # strange, value > 127 breaks protobuf
         num_thresholds = 127
     data = compute_curve(labels, predictions, num_thresholds=num_thresholds, weights=weights)

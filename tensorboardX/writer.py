@@ -25,7 +25,7 @@ import logging
 from .proto import event_pb2
 from .proto import summary_pb2
 from .event_file_writer import EventFileWriter
-from .summary import scalar, histogram, image, audio, text, pr_curve
+from .summary import scalar_summary, histogram_summary, image_summary, audio_summary, text_summary, pr_curve_summary
 from .graph import graph
 from .graph_onnx import gg
 from .embedding import _save_ndarray_to_file, _make_sprite, _make_tsv, _append_pbtxt
@@ -281,7 +281,7 @@ class SummaryWriter(object):
             scalar_value (float): Value to save
             global_step (int): Global step value to record
         """
-        self.file_writer.add_summary(scalar(tag, scalar_value), global_step)
+        self.file_writer.add_summary(scalar_summary(tag, scalar_value), global_step)
         self._append_to_scalar_dict(tag, scalar_value, global_step, time.time())
 
     def add_scalars(self, main_tag, tag_scalar_dict, global_step=None):
@@ -309,7 +309,7 @@ class SummaryWriter(object):
             else:
                 fw = FileWriter(logdir=fw_tag)
                 self.all_writers[fw_tag] = fw
-            fw.add_summary(scalar(main_tag, scalar_value), global_step)
+            fw.add_summary(scalar_summary(main_tag, scalar_value), global_step)
             self._append_to_scalar_dict(fw_tag, scalar_value, global_step, timestamp)
 
     def export_scalars_to_json(self, path):
@@ -333,21 +333,21 @@ class SummaryWriter(object):
         """
         if bins == 'tf':
             bins = self._get_or_create_tf_bins()
-        self.file_writer.add_summary(histogram(tag, values, bins), global_step)
+        self.file_writer.add_summary(histogram_summary(tag, values, bins), global_step)
 
-    def add_image(self, tag, img_tensor, global_step=None):
+    def add_image(self, tag, image, global_step=None):
         """Add image data to summary.
 
         Note that this requires the ``pillow`` package.
 
         Args:
             tag (string): Data identifier
-            img_tensor (torch.Tensor): Image data
+            image (torch.Tensor): Image data
             global_step (int): Global step value to record
         Shape:
             img_tensor: :math:`(3, H, W)`. Use ``torchvision.utils._make_grid()`` to prepare it is a good idea.
         """
-        self.file_writer.add_summary(image(tag, img_tensor), global_step)
+        self.file_writer.add_summary(image_summary(tag, image), global_step)
 
     def add_audio(self, tag, snd_tensor, global_step=None, sample_rate=44100):
         """Add audio data to summary.
@@ -361,14 +361,14 @@ class SummaryWriter(object):
         Shape:
             snd_tensor: :math:`(1, L)`. The values should between [-1, 1].
         """
-        self.file_writer.add_summary(audio(tag, snd_tensor, sample_rate=sample_rate), global_step)
+        self.file_writer.add_summary(audio_summary(tag, snd_tensor, sample_rate=sample_rate), global_step)
 
-    def add_text(self, tag, text_string, global_step=None):
+    def add_text(self, tag, text, global_step=None):
         """Add text data to summary.
 
         Args:
             tag (string): Data identifier
-            text_string (string): String to save
+            text (string): String to save
             global_step (int): Global step value to record
 
         Examples::
@@ -376,7 +376,7 @@ class SummaryWriter(object):
             writer.add_text('lstm', 'This is an lstm', 0)
             writer.add_text('rnn', 'This is an rnn', 10)
         """
-        self.file_writer.add_summary(text(tag, text_string), global_step)
+        self.file_writer.add_summary(text_summary(tag, text), global_step)
         if tag not in self.text_tags:
             self.text_tags.append(tag)
             extension_dir = self.get_logdir() + '/plugins/tensorboard_text/'
@@ -494,7 +494,7 @@ class SummaryWriter(object):
         from .utils import _makenp
         labels = _makenp(labels)
         predictions = _makenp(predictions)
-        self.file_writer.add_summary(pr_curve(tag, labels, predictions, num_thresholds, weights), global_step)
+        self.file_writer.add_summary(pr_curve_summary(tag, labels, predictions, num_thresholds, weights), global_step)
 
     def close(self):
         if self.file_writer is None:

@@ -5,6 +5,7 @@ build
 dist
 *.egg-info
 runs/*
-tensorboardX/proto/*.py*
+tensorboardX/proto/[a-z]*.py*
+tensorboardX/proto/__init__.pyc
 tensorboardX/*.pyc
 .idea/

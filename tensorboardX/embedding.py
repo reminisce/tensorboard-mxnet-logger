@@ -1,4 +1,5 @@
 import os
+import logging
 import numpy as np
 try:
     import mxnet as mx
@@ -153,18 +154,24 @@ def _make_sprite(img_labels, save_path):
 def _append_pbtxt(metadata, label_img, save_path, global_step, tag):
     with open(os.path.join(save_path, 'projector_config.pbtxt'), 'a') as f:
         # step = os.path.split(save_path)[-1]
-        f.write('embeddings {\n')
-        f.write('tensor_name: "{}:{}"\n'.format(tag, global_step))
-        f.write('tensor_path: "{}"\n'.format(os.path.join(global_step, 'tensors.tsv')))
+        s = 'embeddings {\n'
+        s += 'tensor_name: "{}:{}"\n'.format(tag, global_step)
+        s += 'tensor_path: "{}"\n'.format(os.path.join(global_step, 'tensors.tsv'))
         if metadata is not None:
-            f.write('metadata_path: "{}"\n'.format(os.path.join(global_step, 'metadata.tsv')))
+            s += 'metadata_path: "{}"\n'.format(os.path.join(global_step, 'metadata.tsv'))
         if label_img is not None:
-            f.write('sprite {\n')
-            f.write('image_path: "{}"\n'.format(os.path.join(global_step, 'sprite.png')))
-            f.write('single_image_dim: {}\n'.format(label_img.shape[3]))
-            f.write('single_image_dim: {}\n'.format(label_img.shape[2]))
-            f.write('}\n')
-        f.write('}\n')
+            if label_img.ndim != 4:
+                logging.warn('expected 4D sprite image in the format NCHW, while received image ndim=%d,'
+                             ' skipping saving sprite image info'
+                             % label_img.ndim)
+            else:
+                s += 'sprite {\n'
+                s += 'image_path: "{}"\n'.format(os.path.join(global_step, 'sprite.png'))
+                s += 'single_image_dim: {}\n'.format(label_img.shape[3])
+                s += 'single_image_dim: {}\n'.format(label_img.shape[2])
+                s += '}\n'
+        s += '}\n'
+        f.write(s)
 
 
 def _save_ndarray_to_file(data, file_path):

@@ -1,7 +1,7 @@
-from .src.graph_pb2 import GraphDef
-from .src.node_def_pb2 import NodeDef
-from .src.versions_pb2 import VersionDef
-from .src.attr_value_pb2 import AttrValue
+from .proto.graph_pb2 import GraphDef
+from .proto.node_def_pb2 import NodeDef
+from .proto.versions_pb2 import VersionDef
+from .proto.attr_value_pb2 import AttrValue
 
 
 def replace(name, scope):

@@ -1,8 +1,8 @@
-from .src.graph_pb2 import GraphDef
-from .src.node_def_pb2 import NodeDef
-from .src.versions_pb2 import VersionDef
-from .src.attr_value_pb2 import AttrValue
-from .src.tensor_shape_pb2 import TensorShapeProto
+from .proto.graph_pb2 import GraphDef
+from .proto.node_def_pb2 import NodeDef
+from .proto.versions_pb2 import VersionDef
+from .proto.attr_value_pb2 import AttrValue
+from .proto.tensor_shape_pb2 import TensorShapeProto
 
 
 def gg(fname):

@@ -22,9 +22,8 @@ import time
 import json
 import os
 import logging
-import numpy as np
-from .src import event_pb2
-from .src import summary_pb2
+from .proto import event_pb2
+from .proto import summary_pb2
 from .event_file_writer import EventFileWriter
 from .summary import scalar, histogram, image, audio, text, pr_curve
 from .graph import graph

@@ -34,6 +34,7 @@ from __future__ import division
 from __future__ import print_function
 
 import logging
+import io
 import re as _re
 import numpy as np
 from .proto.summary_pb2 import Summary
@@ -43,6 +44,10 @@ from .proto.tensor_pb2 import TensorProto
 from .proto.tensor_shape_pb2 import TensorShapeProto
 from .proto.plugin_pr_curve_pb2 import PrCurvePluginData
 from .utils import _makenp
+try:
+    from PIL import Image
+except:
+    Image = None
 
 _INVALID_TAG_CHARACTERS = _re.compile(r'[^-/\w\.]')
 
@@ -157,10 +162,10 @@ def image_summary(tag, tensor):
 
 def make_image(tensor):
     """Convert an numpy representation image to Image protobuf"""
-    from PIL import Image
+    if Image is None:
+        raise ImportError('need to install PIL for visualizing images')
     height, width, channel = tensor.shape
     image = Image.fromarray(tensor)
-    import io
     output = io.BytesIO()
     image.save(output, format='PNG')
     image_string = output.getvalue()
@@ -181,16 +186,16 @@ def audio_summary(tag, tensor, sample_rate=44100):
     import wave
     import struct
     fio = io.BytesIO()
-    Wave_write = wave.open(fio, 'wb')
-    Wave_write.setnchannels(1)
-    Wave_write.setsampwidth(2)
-    Wave_write.setframerate(sample_rate)
+    wave_writer = wave.open(fio, 'wb')
+    wave_writer.setnchannels(1)
+    wave_writer.setsampwidth(2)
+    wave_writer.setframerate(sample_rate)
     tensor_enc = b''
     for v in tensor_list:
         tensor_enc += struct.pack('<h', v)
 
-    Wave_write.writeframes(tensor_enc)
-    Wave_write.close()
+    wave_writer.writeframes(tensor_enc)
+    wave_writer.close()
     audio_string = fio.getvalue()
     fio.close()
     audio = Summary.Audio(sample_rate=sample_rate,

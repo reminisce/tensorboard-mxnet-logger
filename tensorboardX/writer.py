@@ -342,10 +342,10 @@ class SummaryWriter(object):
 
         Args:
             tag (string): Data identifier
-            image (torch.Tensor): Image data
+            image (MXNet NDArray or NumPy ndarray): Image data
             global_step (int): Global step value to record
         Shape:
-            img_tensor: :math:`(3, H, W)`. Use ``torchvision.utils._make_grid()`` to prepare it is a good idea.
+            img_tensor: :math:`(3, H, W)`. Use ``torchvision.utils.make_grid()`` to prepare it is a good idea.
         """
         self.file_writer.add_summary(image_summary(tag, image), global_step)
 

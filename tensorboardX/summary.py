@@ -43,7 +43,7 @@ from .proto.summary_pb2 import SummaryMetadata
 from .proto.tensor_pb2 import TensorProto
 from .proto.tensor_shape_pb2 import TensorShapeProto
 from .proto.plugin_pr_curve_pb2 import PrCurvePluginData
-from .utils import _makenp
+from .utils import makenp
 try:
     from PIL import Image
 except:
@@ -84,13 +84,13 @@ def scalar_summary(name, scalar):
       ValueError: If tensor has the wrong shape or type.
     """
     name = _clean_tag(name)
-    scalar = _makenp(scalar)
+    scalar = makenp(scalar)
     assert(scalar.squeeze().ndim == 0), 'scalar should be 0D'
     scalar = float(scalar)
     return Summary(value=[Summary.Value(tag=name, simple_value=scalar)])
 
 
-def histogram_summary(name, values, bins, collections=None):
+def histogram_summary(name, values, bins):
     # pylint: disable=line-too-long
     """Outputs a `Summary` protocol buffer with a histogram.
     The generated
@@ -102,14 +102,12 @@ def histogram_summary(name, values, bins, collections=None):
         TensorBoard.
       values: A real numeric `Tensor`. Any shape. Values to use to
         build the histogram.
-      collections: Optional list of graph collections keys. The new summary op is
-        added to these collections. Defaults to `[GraphKeys.SUMMARIES]`.
     Returns:
       A scalar `Tensor` of type `string`. The serialized `Summary` protocol
       buffer.
     """
     name = _clean_tag(name)
-    values = _makenp(values)
+    values = makenp(values)
     hist = make_histogram(values.astype(float), bins)
     return Summary(value=[Summary.Value(tag=name, histo=hist)])
 
@@ -153,7 +151,7 @@ def image_summary(tag, tensor):
       buffer.
     """
     tag = _clean_tag(tag)
-    tensor = _makenp(tensor, 'IMG')
+    tensor = makenp(tensor, 'IMG')
     tensor = tensor.astype(np.float32)
     tensor = (tensor * 255).astype(np.uint8)
     image = make_image(tensor)
@@ -177,7 +175,7 @@ def make_image(tensor):
 
 
 def audio_summary(tag, tensor, sample_rate=44100):
-    tensor = _makenp(tensor)
+    tensor = makenp(tensor)
     tensor = tensor.squeeze()
     assert(tensor.ndim == 1), 'input tensor should be 1 dimensional.'
 
@@ -207,8 +205,8 @@ def audio_summary(tag, tensor, sample_rate=44100):
 
 
 def text_summary(tag, text):
-    PluginData = [SummaryMetadata.PluginData(plugin_name='text')]
-    smd = SummaryMetadata(plugin_data=PluginData)
+    plugin_data = [SummaryMetadata.PluginData(plugin_name='text')]
+    smd = SummaryMetadata(plugin_data=plugin_data)
     tensor = TensorProto(dtype='DT_STRING',
                          string_val=[text.encode(encoding='utf_8')],
                          tensor_shape=TensorShapeProto(dim=[TensorShapeProto.Dim(size=1)]))
@@ -220,8 +218,8 @@ def pr_curve_summary(tag, labels, predictions, num_thresholds=127, weights=None)
         num_thresholds = 127
     data = compute_curve(labels, predictions, num_thresholds=num_thresholds, weights=weights)
     pr_curve_plugin_data = PrCurvePluginData(version=0, num_thresholds=num_thresholds).SerializeToString()
-    PluginData = [SummaryMetadata.PluginData(plugin_name='pr_curves', content=pr_curve_plugin_data)]
-    smd = SummaryMetadata(plugin_data=PluginData)
+    plugin_data = [SummaryMetadata.PluginData(plugin_name='pr_curves', content=pr_curve_plugin_data)]
+    smd = SummaryMetadata(plugin_data=plugin_data)
     tensor = TensorProto(dtype='DT_FLOAT',
                          float_val=data.reshape(-1).tolist(),
                          tensor_shape=TensorShapeProto(

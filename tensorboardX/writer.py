@@ -268,10 +268,10 @@ class SummaryWriter(object):
         """This adds an entry to the self.scalar_dict datastructure with format
         {writer_id : [[timestamp, step, value], ...], ...}.
         """
-        from .utils import _makenp
+        from .utils import makenp
         if tag not in self.scalar_dict.keys():
             self.scalar_dict[tag] = []
-        self.scalar_dict[tag].append([timestamp, global_step, float(_makenp(scalar_value))])
+        self.scalar_dict[tag].append([timestamp, global_step, float(makenp(scalar_value))])
 
     def add_scalar(self, tag, scalar_value, global_step=None):
         """Add scalar data to summary.
@@ -491,9 +491,9 @@ class SummaryWriter(object):
             num_thresholds (int): Number of thresholds used to draw the curve.
 
         """
-        from .utils import _makenp
-        labels = _makenp(labels)
-        predictions = _makenp(predictions)
+        from .utils import makenp
+        labels = makenp(labels)
+        predictions = makenp(predictions)
         self.file_writer.add_summary(pr_curve_summary(tag, labels, predictions, num_thresholds, weights), global_step)
 
     def close(self):

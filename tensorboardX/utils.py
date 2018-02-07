@@ -9,7 +9,7 @@ except ImportError:
     Image = None
 
 
-def _makenp(x, modality=None):
+def makenp(x, modality=None):
     # if already numpy, return
     if isinstance(x, np.ndarray):
         if modality == 'IMG' and x.dtype == np.uint8:
@@ -20,7 +20,7 @@ def _makenp(x, modality=None):
     elif mx is not None and isinstance(x, mx.nd.NDArray):
         return _mxnet_np(x, modality)
     else:
-        raise TypeError('_makenp only accepts input types of numpy.ndarray, scalar,'
+        raise TypeError('makenp only accepts input types of numpy.ndarray, scalar,'
                         ' and MXNet NDArray if MXNet has been installed,'
                         ' while received type=%s' % str(type(x)))
 

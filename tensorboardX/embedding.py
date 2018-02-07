@@ -10,7 +10,7 @@ try:
 except ImportError:
     Image = None
 
-from .utils import _makenp, save_image
+from .utils import makenp, save_image
 
 
 def _make_tsv(metadata, save_path):
@@ -26,7 +26,7 @@ def _make_sprite(img_labels, save_path):
     img_labels_shape = img_labels.shape
     nrow = int(np.ceil(np.sqrt(img_labels_shape[0])))
 
-    img_labels = _makenp(img_labels)
+    img_labels = makenp(img_labels)
     # augment images so that #images equals nrow*nrow
     img_labels = np.concatenate((img_labels,
                                  np.random.normal(loc=0, scale=1,

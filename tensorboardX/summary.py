@@ -35,6 +35,8 @@ from __future__ import print_function
 
 import logging
 import io
+import wave
+import struct
 import re as _re
 import numpy as np
 from .proto.summary_pb2 import Summary
@@ -180,9 +182,6 @@ def audio_summary(tag, tensor, sample_rate=44100):
     assert(tensor.ndim == 1), 'input tensor should be 1 dimensional.'
 
     tensor_list = [int(32767.0 * x) for x in tensor]
-    import io
-    import wave
-    import struct
     fio = io.BytesIO()
     wave_writer = wave.open(fio, 'wb')
     wave_writer.setnchannels(1)

@@ -349,19 +349,19 @@ class SummaryWriter(object):
         """
         self.file_writer.add_summary(image_summary(tag, image), global_step)
 
-    def add_audio(self, tag, snd_tensor, global_step=None, sample_rate=44100):
+    def add_audio(self, tag, audio, global_step=None, sample_rate=44100):
         """Add audio data to summary.
 
         Args:
             tag (string): Data identifier
-            snd_tensor (torch.Tensor): Sound data
+            audio (MXNet NDArray or np.ndarray): audio data squeezable to 1D tensor
             global_step (int): Global step value to record
             sample_rate (int): sample rate in Hz
 
         Shape:
             snd_tensor: :math:`(1, L)`. The values should between [-1, 1].
         """
-        self.file_writer.add_summary(audio_summary(tag, snd_tensor, sample_rate=sample_rate), global_step)
+        self.file_writer.add_summary(audio_summary(tag, audio, sample_rate=sample_rate), global_step)
 
     def add_text(self, tag, text, global_step=None):
         """Add text data to summary.
